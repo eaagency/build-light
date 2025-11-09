@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { createBillingPortalSession } from "@/lib/stripe";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * Create a Stripe billing portal session
@@ -17,6 +18,10 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    // Rate limiting: Strict for billing operations (very sensitive)
+    const rateLimitResponse = await enforceRateLimit(req, userId, "strict");
+    if (rateLimitResponse) return rateLimitResponse;
 
     // Get organization with Stripe customer ID
     const organization = await prisma.organization.findUnique({

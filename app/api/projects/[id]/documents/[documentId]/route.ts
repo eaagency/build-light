@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGoogleAccessToken } from "@/lib/google-oauth";
 import { deleteFile } from "@/lib/google-drive";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * DELETE /api/projects/[id]/documents/[documentId]
@@ -14,6 +15,11 @@ export async function DELETE(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Strict for DELETE requests (sensitive operation)
+    const rateLimitResponse = await enforceRateLimit(req, userId, "strict");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId, documentId } = await params;
 
     // Get user

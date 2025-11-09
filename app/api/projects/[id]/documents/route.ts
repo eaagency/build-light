@@ -9,6 +9,7 @@ import {
   getRecentFiles,
 } from "@/lib/google-drive";
 import { validateFile } from "@/lib/file-validation";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/projects/[id]/documents
@@ -20,6 +21,11 @@ export async function GET(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Generous for GET requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "generous");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId } = await params;
 
     // Get project with folder info
@@ -115,6 +121,11 @@ export async function POST(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Upload limiter for file uploads (expensive operation)
+    const rateLimitResponse = await enforceRateLimit(req, userId, "upload");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId } = await params;
 
     // Get form data

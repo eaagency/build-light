@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getGoogleAccessToken } from "@/lib/google-oauth";
 import { getFolderContents } from "@/lib/google-drive";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/projects/[id]/documents/folders/[folderId]
@@ -13,6 +14,11 @@ export async function GET(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Generous for GET requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "generous");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { folderId } = await params;
 
     // Get Google OAuth token

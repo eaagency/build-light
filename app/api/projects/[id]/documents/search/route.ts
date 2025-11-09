@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { getGoogleAccessToken } from "@/lib/google-oauth";
 import { searchFiles } from "@/lib/google-drive";
 import { prisma } from "@/lib/prisma";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/projects/[id]/documents/search
@@ -14,6 +15,11 @@ export async function POST(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Standard for search requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "standard");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId } = await params;
     const { query } = await req.json();
 

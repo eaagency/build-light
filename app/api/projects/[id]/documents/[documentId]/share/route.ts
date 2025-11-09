@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGoogleAccessToken } from "@/lib/google-oauth";
 import { google } from "googleapis";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/projects/[id]/documents/[documentId]/share
@@ -14,6 +15,11 @@ export async function POST(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Standard for sharing documents
+    const rateLimitResponse = await enforceRateLimit(req, userId, "standard");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId, documentId } = await params;
     const { email, role } = await req.json();
 
@@ -112,6 +118,11 @@ export async function GET(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Standard for getting share links
+    const rateLimitResponse = await enforceRateLimit(req, userId, "standard");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { id: projectId, documentId } = await params;
 
     // Get document

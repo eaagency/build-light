@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireOrg, hasRole } from "@/lib/auth";
 import { Role } from "@/lib/types";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/projects/[id]
@@ -13,6 +14,11 @@ export async function GET(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Generous for GET requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "generous");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const orgId = await requireOrg();
     const { id } = await params;
 
@@ -116,6 +122,11 @@ export async function PATCH(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Standard for PATCH requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "standard");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const orgId = await requireOrg();
     const { id } = await params;
 
@@ -228,6 +239,11 @@ export async function DELETE(
 ) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Strict for DELETE requests (sensitive operation)
+    const rateLimitResponse = await enforceRateLimit(req, userId, "strict");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const orgId = await requireOrg();
     const { id } = await params;
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { createStripeCustomer, createCheckoutSession } from "@/lib/stripe";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * Create a Stripe checkout session for subscription
@@ -18,6 +19,10 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    // Rate limiting: Strict for payment operations (very sensitive)
+    const rateLimitResponse = await enforceRateLimit(req, userId, "strict");
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { plan } = await req.json();
 

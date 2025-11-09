@@ -4,14 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireOrg, hasRole } from "@/lib/auth";
 import { Role } from "@/lib/types";
 import { captureException } from "@/lib/sentry";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/projects
  * List all projects for the current user's organization
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Generous for GET requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "generous");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const orgId = await requireOrg();
 
     // Get user to check role
@@ -118,6 +124,11 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const userId = await requireAuth();
+
+    // Rate limiting: Standard for POST requests
+    const rateLimitResponse = await enforceRateLimit(req, userId, "standard");
+    if (rateLimitResponse) return rateLimitResponse;
+
     const orgId = await requireOrg();
 
     // Only owners and project managers can create projects
