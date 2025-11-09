@@ -45,6 +45,34 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+// Weather enum for daily logs
+enum Weather {
+  SUNNY
+  PARTLY_CLOUDY
+  CLOUDY
+  RAINY
+  SNOWY
+  WINDY
+}
+
+// Task phase enum
+enum TaskPhase {
+  PLANNING
+  DESIGN
+  PERMITS
+  FOUNDATION
+  FRAMING
+  ELECTRICAL
+  PLUMBING
+  HVAC
+  INSULATION
+  DRYWALL
+  FINISHING
+  LANDSCAPING
+  INSPECTION
+  CLOSEOUT
+}
+
 // Organization model - represents a company/builder
 model Organization {
   id               String    @id @default(cuid())
@@ -86,7 +114,10 @@ model User {
   updatedAt      DateTime     @updatedAt
 
   // Relations
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  projectMembers  ProjectMember[]
+  dailyLogs       DailyLog[]
+  uploadedDocuments Document[]
 
   @@index([clerkId])
   @@index([organizationId])
@@ -106,18 +137,137 @@ model Project {
 
   // Project details
   description    String?
+  clientName     String?
+  clientEmail    String?
+  clientPhone    String?
   startDate      DateTime?
   endDate        DateTime?
   budget         Float?
+
+  // Soft delete
+  deletedAt      DateTime?
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   // Relations
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        ProjectMember[]
+  schedules      Schedule[]
+  dailyLogs      DailyLog[]
+  documents      Document[]
 
   @@index([organizationId])
   @@index([status])
   @@index([driveFolderId])
+  @@index([deletedAt])
   @@map("projects")
+}
+
+// ProjectMember - many-to-many relationship between users and projects
+model ProjectMember {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  role      Role     @default(FIELD_WORKER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// Schedule - project timeline/schedule
+model Schedule {
+  id         String    @id @default(cuid())
+  projectId  String
+  name       String
+  isBaseline Boolean   @default(false)
+  isOnline   Boolean   @default(false)
+  settings   Json?     // Flexible JSON for schedule settings
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks      Task[]
+
+  @@index([projectId])
+  @@index([isBaseline])
+  @@map("schedules")
+}
+
+// Task - individual tasks within a schedule
+model Task {
+  id           String     @id @default(cuid())
+  scheduleId   String
+  name         String
+  startDate    DateTime
+  endDate      DateTime
+  dependencies String[]   // Array of task IDs that this task depends on
+  tags         String[]   // Tags for categorization
+  color        String?    // Hex color for visual identification
+  phase        TaskPhase?
+  assignees    String[]   // Array of user IDs assigned to this task
+  notes        String?
+  completed    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  schedule     Schedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([phase])
+  @@map("tasks")
+}
+
+// DailyLog - daily construction logs
+model DailyLog {
+  id          String   @id @default(cuid())
+  projectId   String
+  date        DateTime
+  weather     Weather?
+  notes       String?
+  photos      String[] // Array of photo URLs/IDs
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([date])
+  @@index([createdById])
+  @@map("daily_logs")
+}
+
+// Document - project documents
+model Document {
+  id           String   @id @default(cuid())
+  projectId    String
+  name         String
+  url          String   // Google Drive URL or file path
+  folderId     String?  // Google Drive folder ID
+  uploadedById String
+  mimeType     String?
+  size         BigInt?  // File size in bytes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([uploadedById])
+  @@map("documents")
 }

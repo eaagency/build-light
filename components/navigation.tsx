@@ -12,8 +12,12 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link href="/" className="text-2xl font-bold text-primary">
-              BuildLight
+            <Link href={isSignedIn ? "/dashboard" : "/"} className="flex items-center gap-3">
+              {/* BuildLight Logo - Geometric B/L monogram */}
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xl">BL</span>
+              </div>
+              <span className="text-2xl font-bold text-primary">BuildLight</span>
             </Link>
           </div>
 
