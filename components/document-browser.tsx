@@ -8,6 +8,7 @@ import {
   formatFileSize as formatBytes,
   ALLOWED_FILE_TYPES_DESCRIPTION
 } from "@/lib/file-validation";
+import { captureException } from "@/lib/sentry";
 
 interface Document {
   id: string;
@@ -117,6 +118,11 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
       showSuccess(files.length === 1 ? "File uploaded successfully" : `${files.length} files uploaded successfully`);
     } catch (error: any) {
       console.error("Upload error:", error);
+      captureException(error, {
+        component: "DocumentBrowser",
+        action: "upload",
+        projectId,
+      });
       showError(error.message || "Failed to upload files. Please try again.");
     } finally {
       setUploading(false);
@@ -193,6 +199,12 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
       showSuccess("Document deleted successfully");
     } catch (error) {
       console.error("Delete error:", error);
+      captureException(error, {
+        component: "DocumentBrowser",
+        action: "delete",
+        projectId,
+        documentId,
+      });
       showError("Failed to delete document. Please try again.");
     }
   };

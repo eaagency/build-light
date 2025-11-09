@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireOrg, hasRole } from "@/lib/auth";
 import { Role } from "@/lib/types";
+import { captureException } from "@/lib/sentry";
 
 /**
  * GET /api/projects
@@ -99,6 +100,10 @@ export async function GET() {
     return NextResponse.json({ projects });
   } catch (error: any) {
     console.error("Get projects error:", error);
+    captureException(error, {
+      endpoint: "/api/projects",
+      method: "GET",
+    });
     return NextResponse.json(
       { error: error.message || "Failed to fetch projects" },
       { status: error.message?.includes("Unauthorized") ? 401 : 500 }
@@ -195,6 +200,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ project }, { status: 201 });
   } catch (error: any) {
     console.error("Create project error:", error);
+    captureException(error, {
+      endpoint: "/api/projects",
+      method: "POST",
+    });
     return NextResponse.json(
       { error: error.message || "Failed to create project" },
       { status: error.message?.includes("Unauthorized") ? 401 : 500 }

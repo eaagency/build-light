@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { setUserContext, clearUserContext } from "@/lib/sentry";
+import { useEffect } from "react";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +14,21 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { user, isLoaded } = useUser();
+
+  // Track user context in Sentry
+  useEffect(() => {
+    if (isLoaded && user) {
+      setUserContext(
+        user.id,
+        user.primaryEmailAddress?.emailAddress || "unknown",
+        user.organizationMemberships?.[0]?.organization?.id,
+        user.fullName || undefined
+      );
+    } else if (isLoaded && !user) {
+      clearUserContext();
+    }
+  }, [isLoaded, user]);
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: "📊" },
@@ -73,7 +91,9 @@ export default function DashboardLayout({
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 lg:p-8">{children}</main>
+        <main className="flex-1 p-6 lg:p-8">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
 
       {/* Mobile Navigation */}

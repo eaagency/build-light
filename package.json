@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.34.4",
     "@prisma/client": "^6.19.0",
+    "@sentry/nextjs": "^10.23.0",
     "@stripe/stripe-js": "^8.3.0",
     "googleapis": "^165.0.0",
     "next": "16.0.1",
