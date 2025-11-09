@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
+import { DocumentBrowser } from "@/components/document-browser";
 
 type Tab = "overview" | "schedule" | "logs" | "documents" | "team";
 
@@ -250,15 +251,7 @@ export default function ProjectDetailPage({
       )}
 
       {activeTab === "documents" && (
-        <div className="bg-card border border-border rounded-xl">
-          <EmptyState
-            icon="📄"
-            title="No documents yet"
-            description="Upload project documents, plans, and files to keep everything organized"
-            actionLabel="Upload Document"
-            onAction={() => alert("Documents feature coming soon!")}
-          />
-        </div>
+        <DocumentBrowser projectId={id} projectName={project.name} />
       )}
 
       {activeTab === "team" && (

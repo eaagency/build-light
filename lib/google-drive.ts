@@ -225,3 +225,145 @@ export async function shareFolderWithUser(
     sendNotificationEmail: true,
   });
 }
+
+/**
+ * Get file or folder details
+ */
+export async function getFileDetails(accessToken: string, fileId: string) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.get({
+    fileId,
+    fields: "id, name, mimeType, createdTime, modifiedTime, size, webViewLink, thumbnailLink, iconLink, owners, permissions",
+  });
+
+  return response.data;
+}
+
+/**
+ * Search files by name
+ */
+export async function searchFiles(
+  accessToken: string,
+  folderId: string,
+  query: string
+) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.list({
+    q: `'${folderId}' in parents and name contains '${query}' and trashed=false`,
+    fields: "files(id, name, mimeType, createdTime, modifiedTime, size, webViewLink, thumbnailLink)",
+    orderBy: "modifiedTime desc",
+  });
+
+  return response.data.files || [];
+}
+
+/**
+ * Move file to different folder
+ */
+export async function moveFile(
+  accessToken: string,
+  fileId: string,
+  newParentId: string,
+  oldParentId?: string
+) {
+  const drive = getDriveClient(accessToken);
+
+  const params: any = {
+    fileId,
+    addParents: newParentId,
+    fields: "id, parents",
+  };
+
+  if (oldParentId) {
+    params.removeParents = oldParentId;
+  }
+
+  const response = await drive.files.update(params);
+  return response.data;
+}
+
+/**
+ * Create a new folder
+ */
+export async function createFolder(
+  accessToken: string,
+  folderName: string,
+  parentId: string
+) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    },
+    fields: "id, name, webViewLink",
+  });
+
+  return response.data;
+}
+
+/**
+ * Get folder contents (folders and files separated)
+ */
+export async function getFolderContents(accessToken: string, folderId: string) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.list({
+    q: `'${folderId}' in parents and trashed=false`,
+    fields: "files(id, name, mimeType, createdTime, modifiedTime, size, webViewLink, thumbnailLink, iconLink)",
+    orderBy: "folder,modifiedTime desc",
+  });
+
+  const files = response.data.files || [];
+
+  // Separate folders and files
+  const folders = files.filter(
+    (f) => f.mimeType === "application/vnd.google-apps.folder"
+  );
+  const documents = files.filter(
+    (f) => f.mimeType !== "application/vnd.google-apps.folder"
+  );
+
+  return { folders, documents };
+}
+
+/**
+ * Download file
+ */
+export async function downloadFile(accessToken: string, fileId: string) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.get(
+    {
+      fileId,
+      alt: "media",
+    },
+    { responseType: "arraybuffer" }
+  );
+
+  return response.data;
+}
+
+/**
+ * Get recent files from a folder
+ */
+export async function getRecentFiles(
+  accessToken: string,
+  folderId: string,
+  limit: number = 10
+) {
+  const drive = getDriveClient(accessToken);
+
+  const response = await drive.files.list({
+    q: `'${folderId}' in parents and trashed=false`,
+    fields: "files(id, name, mimeType, createdTime, modifiedTime, size, webViewLink, thumbnailLink)",
+    orderBy: "modifiedTime desc",
+    pageSize: limit,
+  });
+
+  return response.data.files || [];
+}
