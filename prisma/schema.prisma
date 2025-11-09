@@ -25,6 +25,17 @@ enum Plan {
   PRO
 }
 
+// Subscription status enum
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+}
+
 // Project status enum
 enum ProjectStatus {
   PLANNING
@@ -39,7 +50,18 @@ model Organization {
   id               String    @id @default(cuid())
   name             String
   plan             Plan      @default(STARTER)
+
+  // Stripe integration
   stripeCustomerId String?   @unique
+
+  // Google Drive integration
+  driveFolderId    String?   @unique
+
+  // Subscription tracking
+  subscriptionId   String?   @unique
+  subscriptionStatus SubscriptionStatus?
+  trialEndsAt      DateTime?
+
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -47,6 +69,8 @@ model Organization {
   users            User[]
   projects         Project[]
 
+  @@index([stripeCustomerId])
+  @@index([subscriptionStatus])
   @@map("organizations")
 }
 
@@ -76,6 +100,16 @@ model Project {
   address        String
   status         ProjectStatus @default(PLANNING)
   organizationId String
+
+  // Google Drive integration
+  driveFolderId  String?       @unique
+
+  // Project details
+  description    String?
+  startDate      DateTime?
+  endDate        DateTime?
+  budget         Float?
+
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -84,5 +118,6 @@ model Project {
 
   @@index([organizationId])
   @@index([status])
+  @@index([driveFolderId])
   @@map("projects")
 }
