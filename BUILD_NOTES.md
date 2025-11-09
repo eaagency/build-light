@@ -1,51 +1,68 @@
 # BuildLight - Build Notes
 
-## Important: Prisma Client Generation Required
+## ✅ Automatic Prisma Client Generation (Fixed!)
 
-Before running the application or building for production, you **must** generate the Prisma client:
+**Prisma client is now automatically generated** during:
+- `npm install` (via postinstall script)
+- `npm run build` (before Next.js build)
+- Vercel deployments (automatic)
 
-```bash
-npx prisma generate
-```
+You generally **don't need to run** `npx prisma generate` manually anymore!
 
-Then run migrations to create the database schema:
+## Database Setup (First Time Only)
+
+After cloning the repository, run migrations to create the database schema:
 
 ```bash
 npx prisma migrate dev --name init
 ```
 
+Or for production deployments:
+```bash
+npx prisma migrate deploy
+```
+
 ## Development Workflow
 
-1. **Install dependencies**
+1. **Install dependencies** (Prisma generates automatically)
    ```bash
    npm install
    ```
 
-2. **Generate Prisma Client**
-   ```bash
-   npx prisma generate
-   ```
-
-3. **Run migrations**
+2. **Run database migrations** (first time only)
    ```bash
    npx prisma migrate dev
    ```
 
-4. **Start development server**
+3. **Start development server**
    ```bash
    npm run dev
    ```
 
 ## Production Build
 
-For production deployment (e.g., on Vercel):
+For production deployment on Vercel:
 
-1. Prisma client generation is automatically handled during build
-2. Make sure all environment variables are set in Vercel dashboard
-3. Database migrations should be run manually or via CI/CD:
+1. ✅ **Prisma client generation** - Automatic (handled by postinstall script)
+2. ✅ **Environment variables** - Set in Vercel dashboard
+3. ⚠️ **Database migrations** - Run manually before deployment:
    ```bash
    npx prisma migrate deploy
    ```
+
+### Vercel Configuration
+
+The project includes `vercel.json` with optimized settings:
+- Build command runs Prisma generation before Next.js build
+- API routes have 30-second timeout for database operations
+- Configured for optimal performance
+
+### Build Command
+```bash
+prisma generate && next build
+```
+
+This ensures Prisma client is always available during the Next.js build process.
 
 ## Troubleshooting
 
