@@ -42,6 +42,9 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
   const [shareEmail, setShareEmail] = useState("");
   const [shareRole, setShareRole] = useState<"reader" | "writer" | "commenter">("reader");
   const [sharing, setSharing] = useState(false);
+  const [newFolderModal, setNewFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -232,53 +235,184 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
     }
   };
 
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+
+    setCreatingFolder(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/documents/create-folder`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            folderName: newFolderName,
+            parentId: currentFolderId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to create folder");
+      }
+
+      // Reload documents after folder creation
+      await loadDocuments();
+      setNewFolderModal(false);
+      setNewFolderName("");
+    } catch (error) {
+      console.error("Create folder error:", error);
+      alert("Failed to create folder");
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadDocuments();
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/documents/search`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: searchQuery }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setDocuments(data.documents || []);
+        setFolders([]); // Hide folders during search
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-primary mb-2">Documents</h2>
-          <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-            {currentPath.map((item, index) => (
-              <div key={item.id} className="flex items-center gap-2">
-                {index > 0 && <span>/</span>}
-                <button
-                  onClick={() => navigateToPath(index)}
-                  className="hover:text-accent transition-colors"
-                >
-                  {item.name}
-                </button>
-              </div>
-            ))}
-          </nav>
-        </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-primary font-semibold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-primary mb-2">Documents</h2>
+            <nav className="flex items-center gap-2 text-sm text-muted-foreground">
+              {currentPath.map((item, index) => (
+                <div key={item.id} className="flex items-center gap-2">
+                  {index > 0 && <span>/</span>}
+                  <button
+                    onClick={() => navigateToPath(index)}
+                    className="hover:text-accent transition-colors"
+                  >
+                    {item.name}
+                  </button>
+                </div>
+              ))}
+            </nav>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setNewFolderModal(true)}
+              className="inline-flex items-center gap-2 bg-card border border-border hover:bg-muted text-foreground font-semibold px-6 py-3 rounded-lg transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                />
+              </svg>
+              New Folder
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-primary font-semibold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              {uploading ? "Uploading..." : "Upload Files"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
             />
-          </svg>
-          {uploading ? "Uploading..." : "Upload Files"}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={handleFileSelect}
-          className="hidden"
-        />
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Search documents..."
+              className="w-full px-4 py-2 pl-10 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+            <svg
+              className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </div>
+          <button
+            onClick={handleSearch}
+            className="px-6 py-2 bg-accent hover:bg-accent/90 text-primary font-medium rounded-lg transition-colors"
+          >
+            Search
+          </button>
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                loadDocuments();
+              }}
+              className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Drag and drop zone */}
@@ -449,6 +583,52 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Modal */}
+      {newFolderModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-primary mb-4">
+              Create New Folder
+            </h3>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Folder Name
+              </label>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                placeholder="Enter folder name"
+                className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setNewFolderModal(false);
+                  setNewFolderName("");
+                }}
+                className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+                disabled={creatingFolder}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={creatingFolder || !newFolderName.trim()}
+                className="px-4 py-2 bg-accent hover:bg-accent/90 text-primary font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {creatingFolder ? "Creating..." : "Create Folder"}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getGoogleAccessToken } from "@/lib/google-oauth";
 import { createFolder } from "@/lib/google-drive";
+import { prisma } from "@/lib/prisma";
 
 /**
  * POST /api/projects/[id]/documents/create-folder
@@ -13,12 +14,12 @@ export async function POST(
 ) {
   try {
     const userId = await requireAuth();
-    await params;
+    const { id: projectId } = await params;
     const { folderName, parentId } = await req.json();
 
-    if (!folderName || !parentId) {
+    if (!folderName) {
       return NextResponse.json(
-        { error: "Folder name and parent ID are required" },
+        { error: "Folder name is required" },
         { status: 400 }
       );
     }
@@ -33,8 +34,26 @@ export async function POST(
       );
     }
 
+    // If no parentId, use project's drive folder
+    let targetParentId = parentId;
+    if (!targetParentId) {
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { driveFolderId: true },
+      });
+
+      if (!project?.driveFolderId) {
+        return NextResponse.json(
+          { error: "Project drive folder not set up" },
+          { status: 400 }
+        );
+      }
+
+      targetParentId = project.driveFolderId;
+    }
+
     // Create folder
-    const folder = await createFolder(accessToken, folderName, parentId);
+    const folder = await createFolder(accessToken, folderName, targetParentId);
 
     return NextResponse.json({ folder }, { status: 201 });
   } catch (error: any) {
