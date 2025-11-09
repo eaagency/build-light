@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { EmptyState } from "./empty-state";
 import { showSuccess, showError } from "@/lib/toast";
+import {
+  validateFiles,
+  formatFileSize as formatBytes,
+  ALLOWED_FILE_TYPES_DESCRIPTION
+} from "@/lib/file-validation";
 
 interface Document {
   id: string;
@@ -80,6 +85,13 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
   };
 
   const uploadFiles = async (files: File[]) => {
+    // Validate files before upload
+    const validationResult = validateFiles(files);
+    if (!validationResult.valid) {
+      showError(validationResult.error || "Invalid file");
+      return;
+    }
+
     setUploading(true);
     try {
       for (const file of files) {
@@ -95,15 +107,17 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to upload ${file.name}`);
         }
       }
 
       // Reload documents after upload
       await loadDocuments();
-    } catch (error) {
+      showSuccess(files.length === 1 ? "File uploaded successfully" : `${files.length} files uploaded successfully`);
+    } catch (error: any) {
       console.error("Upload error:", error);
-      showError("Failed to upload files. Please try again.");
+      showError(error.message || "Failed to upload files. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -435,8 +449,14 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
           <p className="text-lg font-medium text-foreground mb-2">
             Drag and drop files here
           </p>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-1">
             or click the Upload Files button above
+          </p>
+          <p className="text-xs text-muted-foreground mt-3">
+            Supported: {ALLOWED_FILE_TYPES_DESCRIPTION}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Maximum file size: 50MB
           </p>
         </div>
       </div>

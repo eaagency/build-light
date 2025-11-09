@@ -8,6 +8,7 @@ import {
   createProjectFolder,
   getRecentFiles,
 } from "@/lib/google-drive";
+import { validateFile } from "@/lib/file-validation";
 
 /**
  * GET /api/projects/[id]/documents
@@ -123,6 +124,15 @@ export async function POST(
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // CRITICAL: Server-side validation (never trust client)
+    const validationResult = validateFile(file);
+    if (!validationResult.valid) {
+      return NextResponse.json(
+        { error: validationResult.error },
+        { status: 400 }
+      );
     }
 
     // Get project
