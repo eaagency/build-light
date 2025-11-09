@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { EmptyState } from "./empty-state";
+import { showSuccess, showError } from "@/lib/toast";
 
 interface Document {
   id: string;
@@ -102,7 +103,7 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
       await loadDocuments();
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Failed to upload files");
+      showError("Failed to upload files. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -175,9 +176,10 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
       // Reload documents after deletion
       await loadDocuments();
       setDeleteConfirm(null);
+      showSuccess("Document deleted successfully");
     } catch (error) {
       console.error("Delete error:", error);
-      alert("Failed to delete document");
+      showError("Failed to delete document. Please try again.");
     }
   };
 
@@ -204,13 +206,13 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
         throw new Error("Failed to share document");
       }
 
-      alert(`Document shared successfully with ${shareEmail}`);
+      showSuccess(`Document shared successfully with ${shareEmail}`);
       setShareModal(null);
       setShareEmail("");
       setShareRole("reader");
     } catch (error) {
       console.error("Share error:", error);
-      alert("Failed to share document");
+      showError("Failed to share document. Please try again.");
     } finally {
       setSharing(false);
     }
@@ -228,10 +230,10 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
 
       const data = await response.json();
       navigator.clipboard.writeText(data.shareLink);
-      alert("Share link copied to clipboard!");
+      showSuccess("Share link copied to clipboard!");
     } catch (error) {
       console.error("Get share link error:", error);
-      alert("Failed to get share link");
+      showError("Failed to get share link. Please try again.");
     }
   };
 
@@ -262,9 +264,10 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
       await loadDocuments();
       setNewFolderModal(false);
       setNewFolderName("");
+      showSuccess("Folder created successfully");
     } catch (error) {
       console.error("Create folder error:", error);
-      alert("Failed to create folder");
+      showError("Failed to create folder. Please try again.");
     } finally {
       setCreatingFolder(false);
     }

@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { DocumentBrowser } from "@/components/document-browser";
+import { show } from "@/lib/toast";
 
 type Tab = "overview" | "schedule" | "logs" | "documents" | "team";
 
@@ -233,7 +234,7 @@ export default function ProjectDetailPage({
             title="No schedule yet"
             description="Create a schedule to manage project tasks and timelines"
             actionLabel="Create Schedule"
-            onAction={() => alert("Schedule feature coming soon!")}
+            onAction={() => show("Schedule feature coming soon!", { icon: "📅" })}
           />
         </div>
       )}
@@ -245,7 +246,7 @@ export default function ProjectDetailPage({
             title="No daily logs yet"
             description="Add your first daily log to track progress, weather, and site conditions"
             actionLabel="Add Daily Log"
-            onAction={() => alert("Daily logs feature coming soon!")}
+            onAction={() => show("Daily logs feature coming soon!", { icon: "📝" })}
           />
         </div>
       )}
