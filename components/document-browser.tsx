@@ -37,6 +37,11 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [shareModal, setShareModal] = useState<{ id: string; name: string } | null>(null);
+  const [shareEmail, setShareEmail] = useState("");
+  const [shareRole, setShareRole] = useState<"reader" | "writer" | "commenter">("reader");
+  const [sharing, setSharing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -149,6 +154,82 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
     if (mimeType.includes("presentation") || mimeType.includes("powerpoint"))
       return "📑";
     return "📎";
+  };
+
+  const handleDelete = async (documentId: string) => {
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/documents/${documentId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete document");
+      }
+
+      // Reload documents after deletion
+      await loadDocuments();
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Failed to delete document");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!shareModal || !shareEmail) return;
+
+    setSharing(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/documents/${shareModal.id}/share`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: shareEmail,
+            role: shareRole,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to share document");
+      }
+
+      alert(`Document shared successfully with ${shareEmail}`);
+      setShareModal(null);
+      setShareEmail("");
+      setShareRole("reader");
+    } catch (error) {
+      console.error("Share error:", error);
+      alert("Failed to share document");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleGetShareLink = async (documentId: string) => {
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/documents/${documentId}/share`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to get share link");
+      }
+
+      const data = await response.json();
+      navigator.clipboard.writeText(data.shareLink);
+      alert("Share link copied to clipboard!");
+    } catch (error) {
+      console.error("Get share link error:", error);
+      alert("Failed to get share link");
+    }
   };
 
   return (
@@ -285,6 +366,51 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
                           Open
                         </a>
                       )}
+                      <button
+                        onClick={() => setShareModal({ id: doc.id, name: doc.name })}
+                        className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+                        title="Share with email"
+                      >
+                        Share
+                      </button>
+                      <button
+                        onClick={() => handleGetShareLink(doc.id)}
+                        className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+                        title="Copy share link"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                          />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(doc.id)}
+                        className="px-4 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 font-medium rounded-lg transition-colors"
+                        title="Delete document"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -298,6 +424,100 @@ export function DocumentBrowser({ projectId, projectName }: DocumentBrowserProps
             />
           ) : null}
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-primary mb-4">
+              Delete Document?
+            </h3>
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to delete this document? This action cannot be
+              undone and will remove the file from Google Drive.
+            </p>
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {shareModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold text-primary mb-2">
+              Share Document
+            </h3>
+            <p className="text-muted-foreground mb-6">{shareModal.name}</p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={shareEmail}
+                  onChange={(e) => setShareEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Permission Level
+                </label>
+                <select
+                  value={shareRole}
+                  onChange={(e) =>
+                    setShareRole(e.target.value as "reader" | "writer" | "commenter")
+                  }
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="reader">Viewer - Can view only</option>
+                  <option value="commenter">Commenter - Can view and comment</option>
+                  <option value="writer">Editor - Can view and edit</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShareModal(null);
+                  setShareEmail("");
+                  setShareRole("reader");
+                }}
+                className="px-4 py-2 bg-card border border-border hover:bg-muted text-foreground font-medium rounded-lg transition-colors"
+                disabled={sharing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={sharing || !shareEmail}
+                className="px-4 py-2 bg-accent hover:bg-accent/90 text-primary font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {sharing ? "Sharing..." : "Share"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
