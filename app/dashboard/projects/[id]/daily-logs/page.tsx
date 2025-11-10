@@ -1,10 +1,17 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useCallback } from "react";
+import { subDays, startOfDay, endOfDay } from "date-fns";
+import { Weather } from "@prisma/client";
 import { NewDailyLogButton } from "@/components/daily-logs/new-log-button";
 import { CreateDailyLogModal } from "@/components/daily-logs/create-daily-log-modal";
-import { getDailyLogs } from "@/lib/api/daily-logs";
-import { DailyLogWithRelations } from "@/lib/api/daily-logs";
+import { EditDailyLogModal } from "@/components/daily-logs/edit-daily-log-modal";
+import { DailyLogFilters, DailyLogFiltersState } from "@/components/daily-logs/daily-log-filters";
+import { DailyLogsTimeline } from "@/components/daily-logs/daily-logs-timeline";
+import { EmptyState } from "@/components/daily-logs/empty-state";
+import { getDailyLogs, deleteDailyLog } from "@/lib/api/daily-logs";
+import { DailyLogWithRelations, DailyLogFilters as APIFilters } from "@/lib/api/daily-logs";
+import { show } from "@/lib/toast";
 
 interface TeamMember {
   id: string;
@@ -19,24 +26,93 @@ export default function DailyLogsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id: projectId } = use(params);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<DailyLogWithRelations | null>(null);
+  const [deleteConfirmLog, setDeleteConfirmLog] = useState<DailyLogWithRelations | null>(null);
+
+  // Data states
   const [logs, setLogs] = useState<DailyLogWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch daily logs
-  const fetchLogs = async () => {
+  // Filter states
+  const [filters, setFilters] = useState<DailyLogFiltersState>({
+    dateRange: "7days",
+    startDate: startOfDay(subDays(new Date(), 7)),
+    endDate: endOfDay(new Date()),
+    weather: [],
+    createdBy: [],
+    search: "",
+  });
+
+  // Fetch daily logs with filters
+  const fetchLogs = useCallback(async (page: number = 1, append: boolean = false) => {
     try {
-      setLoading(true);
-      const response = await getDailyLogs(projectId);
-      setLogs(response.logs);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      const apiFilters: APIFilters = {
+        page,
+        limit: 20,
+      };
+
+      // Add date range
+      if (filters.startDate) {
+        apiFilters.startDate = filters.startDate;
+      }
+      if (filters.endDate) {
+        apiFilters.endDate = filters.endDate;
+      }
+
+      // Add weather filter (only first one for now, API needs to support multiple)
+      if (filters.weather.length > 0) {
+        apiFilters.weather = filters.weather[0];
+      }
+
+      // Add creator filter (only first one for now, API needs to support multiple)
+      if (filters.createdBy.length > 0) {
+        apiFilters.createdBy = filters.createdBy[0];
+      }
+
+      const response = await getDailyLogs(projectId, apiFilters);
+
+      // Filter by search on client side (if API doesn't support it)
+      let filteredLogs = response.logs;
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredLogs = response.logs.filter((log) => {
+          const activitiesMatch = log.activities.toLowerCase().includes(searchLower);
+          const crewNotesMatch = log.crewNotes?.toLowerCase().includes(searchLower);
+          return activitiesMatch || crewNotesMatch;
+        });
+      }
+
+      if (append) {
+        setLogs((prev) => [...prev, ...filteredLogs]);
+      } else {
+        setLogs(filteredLogs);
+      }
+
+      setHasMore(response.hasMore);
+      setCurrentPage(page);
     } catch (error) {
       console.error("Failed to fetch logs:", error);
+      show("Failed to load daily logs", { icon: "❌" });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  };
+  }, [projectId, filters]);
 
   // Fetch team members and current user
   const fetchTeamData = async () => {
@@ -56,7 +132,7 @@ export default function DailyLogsPage({
         setTeamMembers(members);
       }
 
-      // Get current user ID (from Clerk session)
+      // Get current user ID
       const userResponse = await fetch("/api/user");
       if (userResponse.ok) {
         const userData = await userResponse.json();
@@ -67,19 +143,72 @@ export default function DailyLogsPage({
     }
   };
 
+  // Initial load
   useEffect(() => {
-    fetchLogs();
     fetchTeamData();
   }, [projectId]);
 
+  // Fetch logs when filters change
+  useEffect(() => {
+    fetchLogs(1, false);
+  }, [fetchLogs]);
+
+  // Handlers
   const handleSuccess = () => {
-    fetchLogs(); // Refresh logs after creation
+    fetchLogs(1, false); // Refresh logs after creation/edit
+    setIsCreateModalOpen(false);
+    setIsEditModalOpen(false);
+    setSelectedLog(null);
   };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      fetchLogs(currentPage + 1, true);
+    }
+  };
+
+  const handleEdit = (log: DailyLogWithRelations) => {
+    setSelectedLog(log);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDelete = (log: DailyLogWithRelations) => {
+    setDeleteConfirmLog(log);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmLog) return;
+
+    try {
+      await deleteDailyLog(projectId, deleteConfirmLog.id);
+      show("Daily log deleted successfully", { icon: "✅" });
+      setDeleteConfirmLog(null);
+      fetchLogs(1, false); // Refresh logs
+    } catch (error: any) {
+      console.error("Failed to delete log:", error);
+      show(error.message || "Failed to delete daily log", { icon: "❌" });
+    }
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      dateRange: "7days",
+      startDate: startOfDay(subDays(new Date(), 7)),
+      endDate: endOfDay(new Date()),
+      weather: [],
+      createdBy: [],
+      search: "",
+    });
+  };
+
+  const hasActiveFilters = filters.weather.length > 0 || filters.createdBy.length > 0 || filters.search;
+  const showEmptyState = !loading && logs.length === 0 && !hasActiveFilters;
+  const showNoResults = !loading && logs.length === 0 && hasActiveFilters;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Daily Logs
@@ -90,130 +219,113 @@ export default function DailyLogsPage({
         </div>
 
         {/* Desktop button */}
-        <NewDailyLogButton onClick={() => setIsModalOpen(true)} />
+        <NewDailyLogButton onClick={() => setIsCreateModalOpen(true)} />
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <svg
-              className="animate-spin h-10 w-10 text-[#6BF178] mx-auto mb-3"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            <p className="text-gray-600 dark:text-gray-400">Loading logs...</p>
-          </div>
-        </div>
-      ) : logs.length === 0 ? (
-        // Empty state
-        <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-12 text-center">
-          <svg
-            className="mx-auto h-16 w-16 text-gray-400 mb-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            No daily logs yet
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-            Start documenting your daily progress by creating your first log.
-            Add photos, weather conditions, and notes about the day's work.
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#6BF178] text-gray-900 rounded-lg hover:bg-[#5DE068] font-medium transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Create Your First Daily Log
-          </button>
-        </div>
-      ) : (
-        // Logs list (placeholder - will build in next prompt)
-        <div className="space-y-4">
-          {logs.map((log) => (
-            <div
-              key={log.id}
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">
-                    {new Date(log.date).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    By {log.createdBy.name || log.createdBy.email}
-                  </p>
-                </div>
-                {log.weather && (
-                  <span className="text-2xl">{log.weather}</span>
-                )}
-              </div>
-              <p className="text-gray-700 dark:text-gray-300 line-clamp-3">
-                {log.activities}
-              </p>
-              {log.photoCount && log.photoCount > 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                  📷 {log.photoCount} photo{log.photoCount !== 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-          ))}
+      {/* Filters */}
+      {!showEmptyState && (
+        <div className="mb-6">
+          <DailyLogFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            teamMembers={teamMembers}
+            isLoading={loading}
+          />
         </div>
       )}
 
-      {/* Mobile FAB */}
-      <NewDailyLogButton onClick={() => setIsModalOpen(true)} mobile />
+      {/* Content */}
+      {showEmptyState ? (
+        // Empty state - no logs at all
+        <EmptyState
+          type="no-logs"
+          onAction={() => setIsCreateModalOpen(true)}
+        />
+      ) : (
+        // Timeline
+        <DailyLogsTimeline
+          logs={logs}
+          isLoading={loading}
+          hasMore={hasMore}
+          onLoadMore={handleLoadMore}
+          currentUserId={currentUserId}
+          teamMembers={teamMembers}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          isLoadingMore={loadingMore}
+          noResults={showNoResults}
+          onClearFilters={handleClearFilters}
+        />
+      )}
 
-      {/* Modal */}
+      {/* Mobile FAB */}
+      <NewDailyLogButton onClick={() => setIsCreateModalOpen(true)} mobile />
+
+      {/* Create Modal */}
       <CreateDailyLogModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
         projectId={projectId}
         teamMembers={teamMembers}
         currentUserId={currentUserId}
         onSuccess={handleSuccess}
       />
+
+      {/* Edit Modal */}
+      <EditDailyLogModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedLog(null);
+        }}
+        projectId={projectId}
+        log={selectedLog}
+        teamMembers={teamMembers}
+        onSuccess={handleSuccess}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmLog && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setDeleteConfirmLog(null)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Delete Daily Log?
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to delete this daily log?
+                {deleteConfirmLog.photos.length > 0 && (
+                  <span className="block mt-2 font-medium text-red-600">
+                    This will also delete {deleteConfirmLog.photos.length} photo
+                    {deleteConfirmLog.photos.length !== 1 ? "s" : ""}.
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-3 justify-end">
+                <button
+                  onClick={() => setDeleteConfirmLog(null)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
