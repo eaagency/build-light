@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { TaskPhase } from "@prisma/client";
+import { TaskPhase, Weather } from "@prisma/client";
 
 // ============================================================================
 // SCHEDULE VALIDATION SCHEMAS
@@ -145,6 +145,106 @@ export const paginationSchema = z.object({
 });
 
 // ============================================================================
+// DAILY LOG VALIDATION SCHEMAS
+// ============================================================================
+
+/**
+ * Schema for creating a new daily log
+ * Enforces one log per date per project
+ */
+export const createDailyLogSchema = z
+  .object({
+    projectId: z.string().cuid("Invalid project ID"),
+    date: z.string().datetime("Invalid date format"),
+    weather: z.nativeEnum(Weather, {
+      errorMap: () => ({ message: "Invalid weather condition" }),
+    }),
+    activities: z
+      .string()
+      .min(1, "Activities are required")
+      .max(5000, "Activities must be 5000 characters or less"),
+    crewNotes: z
+      .string()
+      .max(2000, "Crew notes must be 2000 characters or less")
+      .optional(),
+    photos: z
+      .array(z.string().url("Invalid photo URL"))
+      .max(50, "Maximum 50 photos per log")
+      .optional()
+      .default([]),
+    assignedToId: z.string().cuid("Invalid assigned user ID"),
+  })
+  .refine(
+    (data) => {
+      const logDate = new Date(data.date);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // End of today
+      return logDate <= today;
+    },
+    {
+      message: "Date cannot be in the future",
+      path: ["date"],
+    }
+  );
+
+/**
+ * Schema for updating an existing daily log
+ * Note: date and projectId cannot be updated (immutable)
+ */
+export const updateDailyLogSchema = z.object({
+  weather: z
+    .nativeEnum(Weather, {
+      errorMap: () => ({ message: "Invalid weather condition" }),
+    })
+    .optional(),
+  activities: z
+    .string()
+    .min(1, "Activities cannot be empty")
+    .max(5000, "Activities must be 5000 characters or less")
+    .optional(),
+  crewNotes: z
+    .string()
+    .max(2000, "Crew notes must be 2000 characters or less")
+    .optional(),
+  photos: z
+    .array(z.string().url("Invalid photo URL"))
+    .max(50, "Maximum 50 photos per log")
+    .optional(),
+  assignedToId: z.string().cuid("Invalid assigned user ID").optional(),
+});
+
+/**
+ * Schema for filtering daily logs by query parameters
+ */
+export const dailyLogFilterSchema = z.object({
+  startDate: z.string().datetime("Invalid start date format").optional(),
+  endDate: z.string().datetime("Invalid end date format").optional(),
+  weather: z
+    .nativeEnum(Weather, {
+      errorMap: () => ({ message: "Invalid weather condition" }),
+    })
+    .optional(),
+  createdBy: z.string().cuid("Invalid user ID").optional(),
+  page: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .pipe(z.number().min(1, "Page must be at least 1"))
+    .optional()
+    .default("1"),
+  limit: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .pipe(
+      z
+        .number()
+        .min(1, "Limit must be at least 1")
+        .max(100, "Limit cannot exceed 100")
+    )
+    .optional()
+    .default("50"),
+});
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -156,3 +256,6 @@ export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type BulkUpdateTasksInput = z.infer<typeof bulkUpdateTasksSchema>;
 export type TaskFilterInput = z.infer<typeof taskFilterSchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
+export type CreateDailyLogInput = z.infer<typeof createDailyLogSchema>;
+export type UpdateDailyLogInput = z.infer<typeof updateDailyLogSchema>;
+export type DailyLogFilterInput = z.infer<typeof dailyLogFilterSchema>;

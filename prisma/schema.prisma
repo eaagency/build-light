@@ -48,11 +48,11 @@ enum ProjectStatus {
 // Weather enum for daily logs
 enum Weather {
   SUNNY
-  PARTLY_CLOUDY
   CLOUDY
   RAINY
   SNOWY
   WINDY
+  HOT
 }
 
 // Task phase enum
@@ -114,10 +114,11 @@ model User {
   updatedAt      DateTime     @updatedAt
 
   // Relations
-  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  projectMembers  ProjectMember[]
-  dailyLogs       DailyLog[]
-  uploadedDocuments Document[]
+  organization       Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  projectMembers     ProjectMember[]
+  createdDailyLogs   DailyLog[]       @relation("DailyLogCreator")
+  assignedDailyLogs  DailyLog[]       @relation("DailyLogAssignee")
+  uploadedDocuments  Document[]
 
   @@index([clerkId])
   @@index([organizationId])
@@ -230,23 +231,29 @@ model Task {
 
 // DailyLog - daily construction logs
 model DailyLog {
-  id          String   @id @default(cuid())
-  projectId   String
-  date        DateTime
-  weather     Weather?
-  notes       String?
-  photos      String[] // Array of photo URLs/IDs
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  projectId    String
+  date         DateTime
+  weather      Weather?
+  activities   String    // Daily activities and work completed
+  crewNotes    String?   // Additional crew notes
+  photos       String[]  // Array of photo URLs from Google Drive
+  assignedToId String    // PM or Lead responsible for this log
+  createdById  String    // User who created the log
+  deletedAt    DateTime? // Soft delete
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Relations
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User     @relation("DailyLogCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo User     @relation("DailyLogAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@index([date])
   @@index([createdById])
+  @@index([assignedToId])
+  @@index([deletedAt])
   @@map("daily_logs")
 }
 
