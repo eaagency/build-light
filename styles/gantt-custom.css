@@ -1,0 +1,321 @@
+/**
+ * Custom DHTMLX Gantt Styles for BuildLight
+ * Includes critical path, baseline, and phase marker styling
+ */
+
+/* ========== Critical Path Visualization ========== */
+
+/* Critical path tasks - BLUE highlight */
+.gantt_task_line.critical-task {
+  background-color: #2563EB !important;
+  border: 3px solid #1E40AF !important;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+}
+
+.gantt_task_line.critical-task .gantt_task_progress {
+  background-color: #1E3A8A !important;
+}
+
+.gantt_task_line.critical-task .gantt_task_content {
+  color: white !important;
+  font-weight: 600;
+}
+
+/* Non-critical tasks when critical path is shown */
+.gantt_task_line.non-critical {
+  background-color: #E5E5E5 !important;
+  border-color: #D1D5DB !important;
+  opacity: 0.6;
+}
+
+.gantt_task_line.non-critical .gantt_task_content {
+  color: #6B7280 !important;
+}
+
+/* ========== Baseline Visualization ========== */
+
+/* Baseline ghost tasks - light grey with dashed border */
+.gantt_task_layer .baseline-bar {
+  position: absolute;
+  background-color: #F3F4F6;
+  border: 2px dashed #9CA3AF;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.baseline-task {
+  background: repeating-linear-gradient(
+    45deg,
+    #F3F4F6,
+    #F3F4F6 10px,
+    #E5E7EB 10px,
+    #E5E7EB 20px
+  );
+  border: 2px dashed #9CA3AF !important;
+  opacity: 0.6;
+}
+
+/* Variance indicators */
+.gantt_task_line.ahead-of-schedule {
+  border-left: 4px solid #10B981 !important;
+}
+
+.gantt_task_line.behind-schedule {
+  border-left: 4px solid #EF4444 !important;
+}
+
+.gantt_task_line.on-schedule {
+  border-left: 4px solid #6B7280 !important;
+}
+
+/* ========== Phase Markers ========== */
+
+/* Phase boundary markers on timeline */
+.gantt_marker.phase-marker {
+  background-color: rgba(107, 241, 120, 0.2);
+  border-left: 3px solid #6BF178;
+  border-right: 3px solid #6BF178;
+  z-index: 1;
+}
+
+.gantt_marker.phase-marker .gantt_marker_content {
+  background-color: rgba(107, 241, 120, 0.9);
+  color: #121212;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Phase-specific marker colors */
+.gantt_marker.phase-marker.planning { border-color: #9CA3AF; background-color: rgba(156, 163, 175, 0.1); }
+.gantt_marker.phase-marker.design { border-color: #F59E0B; background-color: rgba(245, 158, 11, 0.1); }
+.gantt_marker.phase-marker.permits { border-color: #DC2626; background-color: rgba(220, 38, 38, 0.1); }
+.gantt_marker.phase-marker.foundation { border-color: #2563EB; background-color: rgba(37, 99, 235, 0.1); }
+.gantt_marker.phase-marker.framing { border-color: #059669; background-color: rgba(5, 150, 105, 0.1); }
+.gantt_marker.phase-marker.electrical { border-color: #7C3AED; background-color: rgba(124, 58, 237, 0.1); }
+.gantt_marker.phase-marker.plumbing { border-color: #EC4899; background-color: rgba(236, 72, 153, 0.1); }
+.gantt_marker.phase-marker.hvac { border-color: #06B6D4; background-color: rgba(6, 182, 212, 0.1); }
+.gantt_marker.phase-marker.insulation { border-color: #8B5CF6; background-color: rgba(139, 92, 246, 0.1); }
+.gantt_marker.phase-marker.drywall { border-color: #10B981; background-color: rgba(16, 185, 129, 0.1); }
+.gantt_marker.phase-marker.finishing { border-color: #F97316; background-color: rgba(249, 115, 22, 0.1); }
+.gantt_marker.phase-marker.landscaping { border-color: #14B8A6; background-color: rgba(20, 184, 166, 0.1); }
+.gantt_marker.phase-marker.inspection { border-color: #6366F1; background-color: rgba(99, 102, 241, 0.1); }
+.gantt_marker.phase-marker.closeout { border-color: #EF4444; background-color: rgba(239, 68, 68, 0.1); }
+
+/* ========== Slack Time Visualization ========== */
+
+/* Slack buffer shown as light extension after task */
+.gantt_task_line .slack-buffer {
+  position: absolute;
+  right: -100%;
+  top: 0;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    #D1FAE5 0px,
+    #D1FAE5 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.gantt_task_line.has-slack {
+  position: relative;
+}
+
+/* ========== Resource Conflicts ========== */
+
+/* Warning for overlapping resource assignments */
+.gantt_task_line.resource-conflict {
+  border-right: 4px solid #F59E0B !important;
+}
+
+.gantt_task_line.resource-conflict::after {
+  content: "⚠️";
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+/* ========== Custom Grid Columns ========== */
+
+/* Assignee avatars in grid */
+.gantt_grid_data .assignee-avatars {
+  display: flex;
+  gap: -8px;
+  padding: 2px 0;
+}
+
+.gantt_grid_data .assignee-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid white;
+  object-fit: cover;
+}
+
+/* Tag pills in grid */
+.gantt_grid_data .task-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gantt_grid_data .task-tag {
+  padding: 2px 6px;
+  background-color: #6BF178;
+  color: #121212;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Progress bar in grid */
+.gantt_grid_data .progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #E5E5E5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gantt_grid_data .progress-bar-fill {
+  height: 100%;
+  background-color: #6BF178;
+  transition: width 0.3s ease;
+}
+
+.gantt_grid_data .progress-bar-fill.complete {
+  background-color: #059669;
+}
+
+/* ========== BuildLight Brand Styling ========== */
+
+/* Primary colors */
+.gantt_task_line {
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.gantt_task_line:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Selected task */
+.gantt_task_line.gantt_selected {
+  box-shadow: 0 0 0 3px #6BF178 !important;
+}
+
+/* Today marker */
+.gantt_marker.gantt_marker_today {
+  background-color: rgba(107, 241, 120, 0.3);
+  border-left: 2px solid #6BF178;
+}
+
+.gantt_marker.gantt_marker_today .gantt_marker_content {
+  background-color: #6BF178;
+  color: #121212;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* ========== Dark Mode Support ========== */
+
+@media (prefers-color-scheme: dark) {
+  .gantt_task_line {
+    border-color: #374151 !important;
+  }
+
+  .baseline-bar {
+    background-color: #1F2937;
+    border-color: #4B5563;
+  }
+
+  .gantt_task_line.non-critical {
+    background-color: #374151 !important;
+  }
+
+  .gantt_grid_data .task-tag {
+    background-color: #6BF178;
+    color: #121212;
+  }
+
+  .gantt_marker.gantt_marker_today {
+    background-color: rgba(107, 241, 120, 0.2);
+  }
+}
+
+/* ========== Responsive Adjustments ========== */
+
+@media (max-width: 768px) {
+  .gantt_task_line .gantt_task_content {
+    font-size: 11px;
+  }
+
+  .gantt_marker .gantt_marker_content {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .gantt_grid_data .assignee-avatar {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* ========== Animation Classes ========== */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.gantt_task_line.updating {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.gantt_task_line.newly-created {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ========== Print Styles ========== */
+
+@media print {
+  .gantt_task_line {
+    box-shadow: none !important;
+  }
+
+  .gantt_marker {
+    opacity: 0.5;
+  }
+
+  .baseline-bar {
+    opacity: 0.3;
+  }
+}
