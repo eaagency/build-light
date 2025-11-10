@@ -2,12 +2,16 @@
 
 import React, { useState, useRef } from "react";
 import { Task } from "@prisma/client";
+import { exportToPDF } from "@/lib/schedule-export";
+import { ExportProgressModal } from "./export-progress-modal";
 
 interface ScheduleExportMenuProps {
   projectId: string;
   scheduleId: string;
   scheduleName: string;
+  projectName: string;
   tasks: Task[];
+  ganttElementId?: string; // ID of the Gantt chart element for PDF export
   className?: string;
 }
 
@@ -18,16 +22,18 @@ type ExportFormat = "pdf" | "csv" | "excel" | "ical";
  * Dropdown menu for exporting schedule in various formats
  *
  * Export options:
- * - PDF: Gantt chart visualization
- * - CSV: Task list with all fields
- * - Excel: Detailed spreadsheet with formulas
- * - iCal: Calendar format for Google Calendar/Outlook
+ * - PDF: Gantt chart visualization (client-side)
+ * - CSV: Task list with all fields (server-side)
+ * - Excel: Detailed spreadsheet with formulas (server-side)
+ * - iCal: Calendar format for Google Calendar/Outlook (server-side)
  */
 export function ScheduleExportMenu({
   projectId,
   scheduleId,
   scheduleName,
+  projectName,
   tasks,
+  ganttElementId = "gantt-container",
   className = "",
 }: ScheduleExportMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,6 +41,7 @@ export function ScheduleExportMenu({
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
     null
   );
+  const [showProgressModal, setShowProgressModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const handleExport = async (format: ExportFormat) => {
@@ -42,38 +49,55 @@ export function ScheduleExportMenu({
     setExportingFormat(format);
     setIsOpen(false);
 
+    // Show progress modal for large schedules
+    if (tasks.length > 50) {
+      setShowProgressModal(true);
+    }
+
     try {
-      const response = await fetch(
-        `/api/projects/${projectId}/schedules/${scheduleId}/export`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ format }),
+      if (format === "pdf") {
+        // Client-side PDF export
+        await exportToPDF(ganttElementId, scheduleName, projectName);
+        showToast("PDF exported successfully", "success");
+      } else {
+        // Server-side export for CSV, Excel, iCal
+        const response = await fetch(
+          `/api/projects/${projectId}/schedules/${scheduleId}/export`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ format }),
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Export failed");
         }
-      );
 
-      if (!response.ok) {
-        throw new Error("Export failed");
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${scheduleName}-${format}.${getFileExtension(format)}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        showToast(`Schedule exported as ${format.toUpperCase()}`, "success");
       }
-
-      // Download the file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${scheduleName}-${format}.${getFileExtension(format)}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      showToast(`Schedule exported as ${format.toUpperCase()}`, "success");
     } catch (error) {
       console.error("Export error:", error);
-      showToast("Export failed. Please try again.", "error");
+      showToast(
+        error instanceof Error ? error.message : "Export failed. Please try again.",
+        "error"
+      );
     } finally {
       setIsExporting(false);
       setExportingFormat(null);
+      setShowProgressModal(false);
     }
   };
 
@@ -171,56 +195,57 @@ export function ScheduleExportMenu({
   ];
 
   return (
-    <div className={`relative ${className}`} ref={menuRef}>
-      {/* Export button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={isExporting || tasks.length === 0}
-        className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium"
-      >
-        {isExporting ? (
-          <>
-            <svg
-              className="animate-spin h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
+    <>
+      <div className={`relative ${className}`} ref={menuRef}>
+        {/* Export button */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={isExporting || tasks.length === 0}
+          className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium"
+        >
+          {isExporting ? (
+            <>
+              <svg
+                className="animate-spin h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              Exporting {exportingFormat}...
+            </>
+          ) : (
+            <>
+              <svg
+                className="w-4 h-4"
+                fill="none"
                 stroke="currentColor"
-                strokeWidth="4"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            Exporting {exportingFormat}...
-          </>
-        ) : (
-          <>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
-            Export
-          </>
-        )}
-      </button>
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              Export
+            </>
+          )}
+        </button>
 
       {/* Dropdown menu */}
       {isOpen && (
@@ -269,7 +294,20 @@ export function ScheduleExportMenu({
           </div>
         </>
       )}
-    </div>
+      </div>
+
+      {/* Export Progress Modal */}
+      <ExportProgressModal
+        isOpen={showProgressModal}
+        format={exportingFormat || ""}
+        taskCount={tasks.length}
+        onCancel={() => {
+          setShowProgressModal(false);
+          setIsExporting(false);
+          setExportingFormat(null);
+        }}
+      />
+    </>
   );
 }
 
