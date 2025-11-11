@@ -62,7 +62,7 @@ interface DailyLogsTimelineProps {
   /**
    * Photo click handler
    */
-  onPhotoClick?: (photoUrl: string, index: number) => void;
+  onPhotoClick?: (photoUrl: string, index: number, log: DailyLogWithRelations) => void;
   /**
    * Card click handler (for detail view)
    */
@@ -288,7 +288,7 @@ export function DailyLogsTimeline({
                       canDelete={canDeleteLog(log)}
                       onEdit={onEdit}
                       onDelete={onDelete}
-                      onPhotoClick={onPhotoClick}
+                      onPhotoClick={(photoUrl, index) => onPhotoClick?.(photoUrl, index, log)}
                       onClick={onCardClick}
                     />
                   </div>

@@ -9,7 +9,8 @@ import { EditDailyLogModal } from "@/components/daily-logs/edit-daily-log-modal"
 import { DailyLogFilters, DailyLogFiltersState } from "@/components/daily-logs/daily-log-filters";
 import { DailyLogsTimeline } from "@/components/daily-logs/daily-logs-timeline";
 import { EmptyState } from "@/components/daily-logs/empty-state";
-import { getDailyLogs, deleteDailyLog } from "@/lib/api/daily-logs";
+import { PhotoGalleryModal } from "@/components/daily-logs/photo-gallery-modal";
+import { getDailyLogs, deleteDailyLog, updateDailyLog } from "@/lib/api/daily-logs";
 import { DailyLogWithRelations, DailyLogFilters as APIFilters } from "@/lib/api/daily-logs";
 import { show } from "@/lib/toast";
 
@@ -32,6 +33,12 @@ export default function DailyLogsPage({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<DailyLogWithRelations | null>(null);
   const [deleteConfirmLog, setDeleteConfirmLog] = useState<DailyLogWithRelations | null>(null);
+
+  // Photo gallery states
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
+  const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
+  const [galleryLog, setGalleryLog] = useState<DailyLogWithRelations | null>(null);
 
   // Data states
   const [logs, setLogs] = useState<DailyLogWithRelations[]>([]);
@@ -201,6 +208,56 @@ export default function DailyLogsPage({
     });
   };
 
+  // Photo gallery handlers
+  const handlePhotoClick = (log: DailyLogWithRelations, photoUrl: string, index: number) => {
+    setGalleryPhotos(log.photos);
+    setGalleryInitialIndex(index);
+    setGalleryLog(log);
+    setIsGalleryOpen(true);
+  };
+
+  const handlePhotoDelete = async (photoUrl: string, photoIndex: number) => {
+    if (!galleryLog) return;
+
+    try {
+      // Remove photo from array
+      const updatedPhotos = galleryLog.photos.filter((p) => p !== photoUrl);
+
+      // Update the log via API
+      await updateDailyLog(projectId, galleryLog.id, {
+        photos: updatedPhotos,
+      });
+
+      show("Photo deleted successfully", { icon: "✅" });
+
+      // Update local state
+      setLogs((prevLogs) =>
+        prevLogs.map((log) =>
+          log.id === galleryLog.id ? { ...log, photos: updatedPhotos } : log
+        )
+      );
+
+      // Update gallery photos
+      setGalleryPhotos(updatedPhotos);
+      setGalleryLog({ ...galleryLog, photos: updatedPhotos });
+
+      // If no more photos, close gallery
+      if (updatedPhotos.length === 0) {
+        setIsGalleryOpen(false);
+      }
+    } catch (error: any) {
+      console.error("Failed to delete photo:", error);
+      show(error.message || "Failed to delete photo", { icon: "❌" });
+      throw error; // Re-throw to let modal handle it
+    }
+  };
+
+  const canDeletePhoto = (log: DailyLogWithRelations): boolean => {
+    if (!currentUserId) return false;
+    // Can delete photos if created by user
+    return log.createdById === currentUserId;
+  };
+
   const hasActiveFilters = filters.weather.length > 0 || filters.createdBy.length > 0 || filters.search;
   const showEmptyState = !loading && logs.length === 0 && !hasActiveFilters;
   const showNoResults = !loading && logs.length === 0 && hasActiveFilters;
@@ -252,6 +309,7 @@ export default function DailyLogsPage({
           teamMembers={teamMembers}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onPhotoClick={(photoUrl, index, log) => handlePhotoClick(log, photoUrl, index)}
           isLoadingMore={loadingMore}
           noResults={showNoResults}
           onClearFilters={handleClearFilters}
@@ -326,6 +384,18 @@ export default function DailyLogsPage({
           </div>
         </>
       )}
+
+      {/* Photo Gallery Modal */}
+      <PhotoGalleryModal
+        isOpen={isGalleryOpen}
+        photos={galleryPhotos}
+        initialIndex={galleryInitialIndex}
+        onClose={() => setIsGalleryOpen(false)}
+        onDelete={handlePhotoDelete}
+        canDelete={galleryLog ? canDeletePhoto(galleryLog) : false}
+        projectName={galleryLog?.project.name}
+        logDate={galleryLog?.date ? new Date(galleryLog.date) : undefined}
+      />
     </div>
   );
 }
