@@ -245,6 +245,106 @@ export const dailyLogFilterSchema = z.object({
 });
 
 // ============================================================================
+// BUDGET VALIDATION SCHEMAS
+// ============================================================================
+
+/**
+ * Schema for a single budget line item
+ */
+export const budgetLineItemSchema = z.object({
+  category: z.enum([
+    "LABOR",
+    "MATERIALS",
+    "SUBCONTRACTORS",
+    "EQUIPMENT",
+    "PERMITS_FEES",
+    "CONTINGENCY",
+    "OVERHEAD",
+    "PROFIT",
+    "OTHER",
+  ], {
+    errorMap: () => ({ message: "Invalid budget category" }),
+  }),
+  description: z
+    .string()
+    .min(1, "Description is required")
+    .max(500, "Description must be 500 characters or less"),
+  quantity: z
+    .number()
+    .min(0, "Quantity must be positive")
+    .max(999999.99, "Quantity is too large"),
+  unit: z
+    .string()
+    .max(20, "Unit must be 20 characters or less")
+    .optional(),
+  unitCost: z
+    .number()
+    .min(0, "Unit cost must be positive")
+    .max(9999999999.99, "Unit cost is too large"),
+  notes: z
+    .string()
+    .max(1000, "Notes must be 1000 characters or less")
+    .optional(),
+});
+
+/**
+ * Schema for creating a new budget
+ */
+export const createBudgetSchema = z.object({
+  lineItems: z
+    .array(budgetLineItemSchema)
+    .min(1, "At least one line item is required")
+    .max(500, "Maximum 500 line items allowed"),
+});
+
+/**
+ * Schema for updating a budget line item
+ * All fields are optional for partial updates
+ */
+export const updateLineItemSchema = budgetLineItemSchema.partial();
+
+/**
+ * Schema for updating actual costs
+ */
+export const updateActualsSchema = z.object({
+  lineItemId: z.string().cuid("Invalid line item ID"),
+  actualCost: z
+    .number()
+    .min(0, "Actual cost must be positive")
+    .max(9999999999.99, "Actual cost is too large"),
+});
+
+/**
+ * Schema for updating multiple line items at once
+ */
+export const updateBudgetSchema = z.object({
+  lineItems: z
+    .array(
+      z.object({
+        id: z.string().cuid("Invalid line item ID"),
+        category: z.enum([
+          "LABOR",
+          "MATERIALS",
+          "SUBCONTRACTORS",
+          "EQUIPMENT",
+          "PERMITS_FEES",
+          "CONTINGENCY",
+          "OVERHEAD",
+          "PROFIT",
+          "OTHER",
+        ]).optional(),
+        description: z.string().min(1).max(500).optional(),
+        quantity: z.number().min(0).max(999999.99).optional(),
+        unit: z.string().max(20).optional(),
+        unitCost: z.number().min(0).max(9999999999.99).optional(),
+        notes: z.string().max(1000).optional(),
+      })
+    )
+    .min(1, "At least one line item is required")
+    .max(500, "Maximum 500 line items allowed"),
+});
+
+// ============================================================================
 // TYPE EXPORTS
 // ============================================================================
 
@@ -259,3 +359,8 @@ export type PaginationInput = z.infer<typeof paginationSchema>;
 export type CreateDailyLogInput = z.infer<typeof createDailyLogSchema>;
 export type UpdateDailyLogInput = z.infer<typeof updateDailyLogSchema>;
 export type DailyLogFilterInput = z.infer<typeof dailyLogFilterSchema>;
+export type BudgetLineItemInput = z.infer<typeof budgetLineItemSchema>;
+export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
+export type UpdateLineItemInput = z.infer<typeof updateLineItemSchema>;
+export type UpdateActualsInput = z.infer<typeof updateActualsSchema>;
+export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;

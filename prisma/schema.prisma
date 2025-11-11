@@ -157,6 +157,7 @@ model Project {
   schedules      Schedule[]
   dailyLogs      DailyLog[]
   documents      Document[]
+  budgets        Budget?
 
   @@index([organizationId])
   @@index([status])
@@ -277,4 +278,80 @@ model Document {
   @@index([projectId])
   @@index([uploadedById])
   @@map("documents")
+}
+
+// Budget category enum
+enum BudgetCategory {
+  LABOR
+  MATERIALS
+  SUBCONTRACTORS
+  EQUIPMENT
+  PERMITS_FEES
+  CONTINGENCY
+  OVERHEAD
+  PROFIT
+  OTHER
+}
+
+// Budget - tracks original vs revised budget for a project
+model Budget {
+  id            String           @id @default(cuid())
+  projectId     String           @unique
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Original budget (set once, never changes)
+  originalTotal Decimal          @db.Decimal(12, 2)
+
+  // Revised budget (updates with change orders)
+  revisedTotal  Decimal          @db.Decimal(12, 2)
+
+  // Actuals tracking
+  actualTotal   Decimal          @default(0) @db.Decimal(12, 2)
+
+  // Variance
+  variance      Decimal          @default(0) @db.Decimal(12, 2) // revisedTotal - actualTotal
+  variancePercent Decimal        @default(0) @db.Decimal(5, 2)  // variance / revisedTotal * 100
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  lineItems     BudgetLineItem[]
+
+  @@index([projectId, deletedAt])
+  @@map("budgets")
+}
+
+// BudgetLineItem - individual line items in a budget
+model BudgetLineItem {
+  id          String         @id @default(cuid())
+  budgetId    String
+  budget      Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  // Line item details
+  category    BudgetCategory
+  description String
+  quantity    Decimal        @db.Decimal(10, 2)
+  unit        String?        // "sq ft", "ea", "lbs", etc.
+  unitCost    Decimal        @db.Decimal(10, 2)
+  totalCost   Decimal        @db.Decimal(12, 2) // quantity * unitCost
+
+  // Tracking
+  type        String         // "original" or "revised"
+  sortOrder   Int            @default(0)
+
+  // Actuals
+  actualCost  Decimal        @default(0) @db.Decimal(12, 2)
+  variance    Decimal        @default(0) @db.Decimal(12, 2) // totalCost - actualCost
+
+  // Metadata
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  @@index([budgetId, type, deletedAt])
+  @@index([budgetId, category])
+  @@map("budget_line_items")
 }
