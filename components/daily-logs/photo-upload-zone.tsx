@@ -169,6 +169,20 @@ export function PhotoUploadZone({
     maxFiles: maxPhotos - photos.length,
   });
 
+  // Handle camera capture (mobile)
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      onDrop(files);
+    }
+    // Reset input so same file can be selected again
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+  };
+
   // Handle photo removal
   const handleRemove = (url: string) => {
     onChange(photos.filter((p) => p !== url));
@@ -233,10 +247,21 @@ export function PhotoUploadZone({
           )}
 
           {/* Mobile: Camera button */}
-          <div className="mt-4 md:hidden">
+          <div className="mt-4 md:hidden flex gap-2 justify-center">
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleCameraCapture}
+              className="hidden"
+              disabled={disabled || isUploading}
+            />
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#6BF178] text-gray-900 rounded-lg font-medium"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={disabled || isUploading}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#6BF178] text-gray-900 rounded-lg font-medium hover:bg-[#5DE068] disabled:opacity-50 transition-colors"
             >
               <svg
                 className="w-5 h-5"

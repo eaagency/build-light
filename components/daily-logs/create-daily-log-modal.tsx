@@ -6,8 +6,11 @@ import { DatePickerField } from "./date-picker-field";
 import { WeatherSelector } from "./weather-selector";
 import { PhotoUploadZone } from "./photo-upload-zone";
 import { AssignedToSelector } from "./assigned-to-selector";
-import { dailyLogExistsForDate, createDailyLog } from "@/lib/api/daily-logs";
+import { TemplateSelector } from "./template-selector";
+import { SaveTemplateModal } from "./save-template-modal";
+import { dailyLogExistsForDate, createDailyLog, getDailyLogsByDateRange } from "@/lib/api/daily-logs";
 import { show } from "@/lib/toast";
+import { LogTemplate } from "@/lib/daily-logs/templates";
 
 interface TeamMember {
   id: string;
@@ -65,6 +68,8 @@ export function CreateDailyLogModal({
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCrewNotes, setShowCrewNotes] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
 
   // Auto-save draft to localStorage
   useEffect(() => {
@@ -111,6 +116,98 @@ export function CreateDailyLogModal({
       }
     }
   }, [isOpen, projectId, currentUserId]);
+
+  // Handle template selection
+  const handleSelectTemplate = (template: LogTemplate | null) => {
+    if (template) {
+      setFormData((prev) => ({
+        ...prev,
+        activities: template.activities,
+        crewNotes: template.crewNotes || "",
+      }));
+
+      if (template.crewNotes) {
+        setShowCrewNotes(true);
+      }
+
+      setSelectedTemplateId(template.id);
+      show(`Applied ${template.name} template`, { icon: template.icon });
+    } else {
+      setSelectedTemplateId(null);
+    }
+  };
+
+  // Quick action: Set date to yesterday
+  const handleSetYesterday = async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    setFormData({ ...formData, date: yesterday });
+
+    // Check if log exists for yesterday
+    const exists = await checkExistingLog(yesterday);
+    if (exists) {
+      show("A log already exists for yesterday", { icon: "⚠️" });
+    }
+  };
+
+  // Quick action: Copy weather from yesterday
+  const handleCopyWeatherFromYesterday = async () => {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const startOfDay = new Date(yesterday);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(yesterday);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const logs = await getDailyLogsByDateRange(projectId, startOfDay, endOfDay);
+
+      if (logs.length > 0) {
+        setFormData({ ...formData, weather: logs[0].weather });
+        show("Weather copied from yesterday", { icon: "☀️" });
+      } else {
+        show("No log found for yesterday", { icon: "⚠️" });
+      }
+    } catch (error) {
+      console.error("Error copying weather:", error);
+      show("Failed to copy weather", { icon: "❌" });
+    }
+  };
+
+  // Quick action: Copy from yesterday
+  const handleCopyFromYesterday = async () => {
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const startOfDay = new Date(yesterday);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(yesterday);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const logs = await getDailyLogsByDateRange(projectId, startOfDay, endOfDay);
+
+      if (logs.length > 0) {
+        const yesterdayLog = logs[0];
+        setFormData({
+          ...formData,
+          weather: yesterdayLog.weather,
+          activities: yesterdayLog.activities + " (continued)",
+          assignedToId: yesterdayLog.assignedToId,
+        });
+        show("Copied from yesterday", { icon: "📋" });
+      } else {
+        show("No log found for yesterday", { icon: "⚠️" });
+      }
+    } catch (error) {
+      console.error("Error copying from yesterday:", error);
+      show("Failed to copy from yesterday", { icon: "❌" });
+    }
+  };
 
   // Validate form
   const validate = (): boolean => {
@@ -241,6 +338,49 @@ export function CreateDailyLogModal({
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+              {/* Template Selector */}
+              <TemplateSelector
+                onSelectTemplate={handleSelectTemplate}
+                selectedTemplateId={selectedTemplateId}
+              />
+
+              {/* Quick Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSetYesterday}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-buildlight-green"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                  </svg>
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyWeatherFromYesterday}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-buildlight-green"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Same weather
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyFromYesterday}
+                  disabled={isSubmitting}
+                  className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-buildlight-green"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Copy from yesterday
+                </button>
+              </div>
+
               {/* Date */}
               <DatePickerField
                 value={formData.date}
@@ -340,37 +480,64 @@ export function CreateDailyLogModal({
             </form>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-800">
               <button
                 type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 font-medium"
+                onClick={() => setShowSaveTemplateModal(true)}
+                disabled={isSubmitting || !formData.activities}
+                className="px-4 py-2 text-sm text-buildlight-green hover:bg-buildlight-green/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-buildlight-green"
               >
-                Cancel
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                Save as template
               </button>
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="px-6 py-3 bg-[#6BF178] text-gray-900 rounded-lg hover:bg-[#5DE068] disabled:opacity-50 font-medium flex items-center gap-2 min-w-[140px] justify-center"
-              >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Saving...
-                  </>
-                ) : (
-                  "Save Daily Log"
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-[#6BF178] text-gray-900 rounded-lg hover:bg-[#5DE068] disabled:opacity-50 font-medium flex items-center gap-2 min-w-[140px] justify-center"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Daily Log"
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Save Template Modal */}
+      <SaveTemplateModal
+        isOpen={showSaveTemplateModal}
+        onClose={() => setShowSaveTemplateModal(false)}
+        onSaved={() => {
+          show("Template saved successfully", { icon: "✅" });
+        }}
+        currentData={{
+          activities: formData.activities,
+          crewNotes: formData.crewNotes,
+          assignedTo: formData.assignedToId || undefined,
+        }}
+      />
     </>
   );
 }
